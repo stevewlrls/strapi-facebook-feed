@@ -1,0 +1,42 @@
+{
+  "kind": "collectionType",
+  "collectionName": "facebook_posts",
+  "info": {
+    "singularName": "facebook-post",
+    "pluralName": "facebook-posts",
+    "displayName": "Facebook Post"
+  },
+  "options": {
+    "draftAndPublish": false,
+    "comment": ""
+  },
+  "attributes": {
+    "postID": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "string"
+    },
+    "author": {
+      "type": "string"
+    },
+    "body": {
+      "type": "text"
+    },
+    "featured": {
+      "type": "text"
+    },
+    "image_size": {
+      "type": "string"
+    },
+    "created": {
+      "type": "string"
+    },
+    "updated": {
+      "type": "string"
+    }
+  }
+}

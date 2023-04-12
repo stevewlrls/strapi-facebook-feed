@@ -5,7 +5,9 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { BaseHeaderLayout, ContentLayout, Typography, Button, Box } from '@strapi/design-system';
+import {
+  BaseHeaderLayout, ContentLayout, Typography, Button, Box, Flex, Checkbox
+} from '@strapi/design-system';
 import { useNotification, getFetchClient } from '@strapi/helper-plugin';
 // import PropTypes from 'prop-types';
 import pluginId from '../../pluginId';
@@ -40,14 +42,22 @@ const HomePage = () => {
             </Typography>
           )
         }
-        <Box padding="5" >
-          <form method="POST" action="/facebook-feed/connect" onSubmit={connectPage}>
+        <form method="POST" action="/facebook-feed/connect" onSubmit={connectPage}>
+          <Flex padding="5" gap="2">
+            <Checkbox
+              name="pageOnly"
+              checked={params?.pageOnly}
+              onChange={(e) => {
+                setParams({...params, pageOnly: e.target.checked})
+              }}
+              hint="Check to disable Instagram"
+            >Page only</Checkbox>
             <Button
               type="submit"
               disabled={isConnecting || ! isInitialised}
             >Connect</Button>
-          </form>
-        </Box>
+          </Flex>
+        </form>
         {
           params?.pageName && (
             <>
@@ -56,12 +66,10 @@ const HomePage = () => {
                 but if you want to, you can trigger that operation now:
               </Typography>
               <Box padding="5">
-                <form method="POST" action="/facebook-feed/fetch" onSubmit={fetchPosts}>
-                  <Button
-                    type="submit"
-                    disabled={isFetching}
-                  >Fetch posts</Button>
-                </form>
+                <Button
+                  disabled={isFetching}
+                  onClick={fetchPosts}
+                >Fetch posts</Button>
               </Box>
             </>
           )
@@ -70,15 +78,23 @@ const HomePage = () => {
     </>
   );
 
+  // getSettings
+  //    Called on component mount, to fetch the Facebook app settings and
+  // then attach the Facebook API.
+
   function getSettings() {
     const { get } = getFetchClient();
     get(`/${pluginId}/connect`)
       .then(rsp => {
-        console.log('response', JSON.stringify(rsp));
         setParams(rsp.data);
         initFacebookAPI(rsp.data.appId);
       });
   }
+
+  // initFacebookAPI
+  //    Called when the Facebook app Id has been fetched, to load and
+  // initialise the Javascript API, so we can later perform a Facebook
+  // login with the right context.
 
   function initFacebookAPI(appId) {
     if (document.getElementById('facebook-feed-sdk')) {
@@ -102,16 +118,32 @@ const HomePage = () => {
     document.body.appendChild(fbs);
   }
 
+  // connectPage
+  //    Handles the 'submit' event for the page connection form. First
+  // gets permission for the app, by invoking Facebook login with the
+  // right parameters, then passes the returned user token to the back
+  // end (server) code for the plugin, to complete the connection
+  // process.
+
   function connectPage(ev) {
     ev.preventDefault();
     setConnecting(true);
+    let scope = [
+      'pages_read_engagement',
+      'pages_read_user_content',
+      'pages_show_list'
+    ].join(',');
+    if (! params.pageOnly)
+      scope = scope + ',instagram_basic';
+
     window.FB.login(
       (response) => {
         if (response.status === 'connected') {
           const { post } = getFetchClient();
           post(`/${pluginId}/connect`, {
             userToken: response.authResponse.accessToken,
-            userID: response.authResponse.userID
+            userID: response.authResponse.userID,
+            pageOnly: Boolean(params.pageOnly)
           })
           .then(rsp => {
             setConnecting(false);
@@ -131,12 +163,15 @@ const HomePage = () => {
           })
         }
       },
-      {scope: 'pages_read_engagement,pages_read_user_content'}
+      { scope }
     );
   }
 
+  // fetchPosts
+  //    Event handler for the 'Fetch posts' button. Requests the back end
+  // (server) part of the plugin to fetch new posts now.
+
   function fetchPosts(ev) {
-    ev.preventDefault()
     setFetching(true);
     const { post } = getFetchClient();
     post(`/${pluginId}/fetch-posts`)

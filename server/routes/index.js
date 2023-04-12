@@ -1,7 +1,9 @@
-const tasks = require('./tasks');
 const post = require('./facebook-post');
+const media = require('./instagram-post');
+const tasks = require('./tasks');
 
 module.exports = {
-  tasks,
   post,
+  media,
+  tasks,
 };

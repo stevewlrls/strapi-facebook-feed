@@ -1,41 +1,38 @@
 {
   "kind": "collectionType",
-  "collectionName": "facebook_posts",
+  "collectionName": "instagram_posts",
   "info": {
-    "singularName": "facebook-post",
-    "pluralName": "facebook-posts",
-    "displayName": "Facebook Post"
+    "singularName": "instagram-post",
+    "pluralName": "instagram-posts",
+    "displayName": "Instagram Post"
   },
   "options": {
     "draftAndPublish": false,
     "comment": ""
   },
   "attributes": {
-    "postID": {
+    "mediaID": {
       "type": "string"
     },
-    "title": {
+    "caption": {
+      "type": "text"
+    },
+    "mediaURL": {
       "type": "string"
     },
-    "tags": {
+    "mediaType": {
+      "type": "string"
+    },
+    "mediaSize": {
       "type": "string"
     },
     "author": {
       "type": "string"
     },
-    "body": {
-      "type": "text"
-    },
-    "featured": {
-      "type": "text"
-    },
-    "image_size": {
-      "type": "string"
-    },
     "created": {
       "type": "string"
     },
-    "updated": {
+    "tags": {
       "type": "string"
     },
     "permalink": {

@@ -39,6 +39,8 @@ In `{strapi}/config/middlewares.js`:
 }
 ```
 
+If you're unsure how to get an SSL reverse proxy working in front of your Strapi build, check out the options in the [Strapi depoyment docs](https://docs.strapi.io/dev-docs/deployment/optional-software-guides), or check out [mitmproxy](https://mitmproxy.org).
+
 Once the plugin is installed, you will also need to rebuild your admin UI, in the usual way, e.g.:
 
 ```

@@ -103,7 +103,7 @@ async function connectPage({userToken, userID, pageOnly}) {
 
     // Return the same kind of response as 'getConnectedPage'.
     const { appId, clientSecret } = settings;
-    return { pageName, appId, clientSecret };
+    return { pageName, appId, clientSecret, pageOnly };
   }
   catch (err) {
     return { error: err.message };

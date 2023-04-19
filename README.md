@@ -4,20 +4,11 @@ I created this plugin to fetch posts from a Facebook page and make them availabl
 
 ## Installing
 
-At the moment, the plugin isn't published as an NPM package, but you can clone the repository and copy the files into the 'plugins' folder within your Strapi installation. You then need to add the following to `{strapi}/config/plugins.js`:
-
-```js
-module.exports = {
-  'facebook-feed': {
-    enabled: true,
-    resolve: './src/plugins/facebook-feed',
-  },
-}
-```
+At the moment, the plugin isn't published as an NPM package, but you can clone the repository and copy the files into the 'plugins' folder within your Strapi installation.
 
 Because the Facebook login API can only be invoked from a web page that's fetched with HTTPS, you'll need to configure your Strapi admin UI to be accessible through a reverse proxy (with SSL). You'll also need to alter the Content Security Policy settings of your Strapi setup, to allow access to the Facebook API:
 
-In `{strapi}/config/middlewares.js`:
+In {strapi}/config/middlewares.js:
 
 ```js
 {
@@ -38,8 +29,6 @@ In `{strapi}/config/middlewares.js`:
   //...
 }
 ```
-
-If you're unsure how to get an SSL reverse proxy working in front of your Strapi build, check out the options in the [Strapi depoyment docs](https://docs.strapi.io/dev-docs/deployment/optional-software-guides), or check out [mitmproxy](https://mitmproxy.org).
 
 Once the plugin is installed, you will also need to rebuild your admin UI, in the usual way, e.g.:
 

@@ -52,5 +52,14 @@ module.exports = {
         // auth: false
       }
     },
+    {
+      method: 'GET',
+      path: '/picture/:path',
+      handler: 'tasks.getPicture',
+      config: {
+        policies: [],
+        auth: false
+      }
+    }
   ]
 };

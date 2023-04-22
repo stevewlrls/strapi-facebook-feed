@@ -1,5 +1,8 @@
 'use strict';
 
+const fs = require('node:fs/promises');
+const sharp = require('sharp');
+
 //---------------------------------------------------------------------------
 // getPluginStore
 //    Helper function that returns the database store (table) in which we
@@ -166,6 +169,10 @@ async function getFacebookPosts(store, page) {
       sort: { createdAt: 'desc' }
     });
 
+  // Make sure the output directory exists, for storing pictures.
+  const prefix = './public/facebook-feed';
+  await fs.mkdir(prefix, {recursive: true});
+
   // Now start fetching posts from the connected Facebook page (default
   // order is newest first).
   const app = await store.get({key: 'settings'});
@@ -173,7 +180,7 @@ async function getFacebookPosts(store, page) {
 
   let next = `https://graph.facebook.com/${page.pageID}/feed` +
     `?access_token=${page.pageToken}` +
-    '&fields=id,created_time,updated_time,from,full_picture,message,attachments,permalink_url' +
+    '&fields=id,created_time,updated_time,from,full_picture,message,permalink_url' +
     `&client_id=${app.appId}` +
     `&client_secret=${app.appSecret}`;
 
@@ -195,8 +202,25 @@ async function getFacebookPosts(store, page) {
         break;
       }
 
-      const attachment = post.attachments?.data.find(d => d.media.image.src === post.full_picture);
-      const image = attachment?.media.image;
+      // Fetch the 'full picture' image and store it locally, as Facebook links
+      // expire after a few days.
+      let width = 0, height = 0, featured;
+      const serverURL = strapi.config.get('server.url', '');
+
+      if (post.full_picture) {
+        const path = `${post.id}.webp`
+        await fetch(post.full_picture)
+          .then(rsp => rsp.arrayBuffer())
+          .then(buf => sharp(buf).resize(700).toFile(`${prefix}/${path}`))
+          .then(info => {
+            width = info.width; height = info.height;
+            featured = `${serverURL}/facebook-feed/picture/${path}`;
+            console.log('Written to', featured);
+          })
+          .catch(err => {
+            console.log('Cannot write FB image', path, err);
+          })
+      }
 
       // Otherwise, we create a new 'facebook-post' entry from the post
       // data.
@@ -209,8 +233,8 @@ async function getFacebookPosts(store, page) {
             tags:     post.message?.match(/:[\w]+/g)?.join(',') || '',
             body:     post.message || '',
             author:   post.from.name || page.pageName,
-            featured: post.full_picture,
-            image_size: image ? `${image.width}x${image.height}` : '1x1',
+            featured,
+            image_size: featured ? `${width}x${height}` : '0x0',
             permalink: post.permalink_url,
             created:  post.created_time,
             updated:  post.updated_time
@@ -290,6 +314,15 @@ async function getInstagramPosts(store, page) {
 }
 
 //---------------------------------------------------------------------------
+// getPicture
+//---------------------------------------------------------------------------
+
+function getPicture(path) {
+  const prefix = './public/facebook-feed';
+  return fs.readFile(`${prefix}/${path}`);
+}
+
+//---------------------------------------------------------------------------
 // Module exports
 //---------------------------------------------------------------------------
 
@@ -298,5 +331,6 @@ module.exports = () => ({
   saveSettings,
   connectPage,
   getConnectedPage,
-  fetchPosts
+  fetchPosts,
+  getPicture
 });

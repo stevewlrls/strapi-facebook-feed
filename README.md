@@ -4,7 +4,18 @@ I created this plugin to fetch posts from a Facebook page and make them availabl
 
 ## Installing
 
-At the moment, the plugin isn't published as an NPM package, but you can clone the repository and copy the files into the 'plugins' folder within your Strapi installation.
+At the moment, the plugin isn't published as an NPM package, but you can clone the repository into the 'plugins' folder within your Strapi installation. You then need to add the plugin to yourr Strapi configuration file `{strapi}/config/plugins.js`:
+
+```js
+module.exports = {
+  'youtube-feed': {
+    enabled: true,
+    resolve: './src/plugins/youtube-feed',
+  },
+  // ...
+}
+
+```
 
 Because the Facebook login API can only be invoked from a web page that's fetched with HTTPS, you'll need to configure your Strapi admin UI to be accessible through a reverse proxy (with SSL). You'll also need to alter the Content Security Policy settings of your Strapi setup, to allow access to the Facebook API:
 
@@ -44,7 +55,7 @@ The plugin provides a 'settings' page that you need to visit first. This provide
 
 For obvious security reasons, Facebook limits access to the data on or about a page. However, the owner of a page can create a 'developer' account [https://developer.facebook.com] and, within that, create their own, private 'app' that can then be used to access content without the need for a formal review of the app's purpose.
 
-\[I decided not to have a single 'app' that all users of the plugin would share, because that _would_ have required a formal review, _and_ I would have had to create a whole business (to own the app) that Facebook (Meta) could verify.\]
+I decided not to have a single 'app' that all users of the plugin would share, because that _would_ have required a formal review, _and_ I would have had to create a whole business (to own the app) that Facebook (Meta) could verify. However, if you do have a Facebook Business Account then you should connect the app to your business.
 
 ### Connecting A Page
 
@@ -64,6 +75,6 @@ Posts are made available via the Strapi 'api' endpoint via the route `/api/faceb
 
 ## Caveats
 
-Once the plugin has been activated for the first time, content types can no longer be modified via the schema definitions within the plugin code. This is a feature of Strapi.
+Once the plugin has been activated for the first time, content types can no longer be modified via the schema definitions within the plugin code. This is a feature of Strapi (v4).
 
-The admin pages for the plugin (settings and home panel) are only available to users with 'Administrator' role. This is again 'by design' and helps protect both sensitive data (app details) and correct operation of the plugin.
+The admin pages for the plugin (settings and home panel) are only available to users with 'Super administrator' role. This is again 'by design' and helps protect both sensitive data (app details) and correct operation of the plugin.

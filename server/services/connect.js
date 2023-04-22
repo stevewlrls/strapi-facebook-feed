@@ -195,6 +195,9 @@ async function getFacebookPosts(store, page) {
         break;
       }
 
+      const attachment = post.attachments?.data.find(d => d.media.image.src === post.full_picture);
+      const image = attachment?.media.image;
+
       // Otherwise, we create a new 'facebook-post' entry from the post
       // data.
       await strapi.entityService.create(
@@ -207,9 +210,7 @@ async function getFacebookPosts(store, page) {
             body:     post.message || '',
             author:   post.from.name || page.pageName,
             featured: post.full_picture,
-            image_size:
-              post.attachments?.data[0].media.image.width + 'x' +
-              post.attachments?.data[0].media.image.height,
+            image_size: image ? `${image.width}x${image.height}` : '1x1',
             permalink: post.permalink_url,
             created:  post.created_time,
             updated:  post.updated_time

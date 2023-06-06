@@ -97,6 +97,13 @@ const HomePage = () => {
   // login with the right context.
 
   function initFacebookAPI(appId) {
+    if (! appId) {
+      setNotice({
+        type: 'info',
+        message: 'You need to initialise the plugin settings before using this feature'
+      });
+      return;
+    }
     if (document.getElementById('facebook-feed-sdk')) {
       setInitialised(true); // Script already loaded...
       return;
@@ -173,8 +180,8 @@ const HomePage = () => {
 
   function fetchPosts(ev) {
     setFetching(true);
-    const { post } = getFetchClient();
-    post(`/${pluginId}/fetch-posts`)
+    const { get } = getFetchClient();
+    get(`/${pluginId}/fetch-posts`)
       .then(rsp => {
         setFetching(false);
         setNotice({
@@ -185,7 +192,7 @@ const HomePage = () => {
       .catch(err => {
         setFetching(false);
         setNotice({
-          type: 'error',
+          type: 'warning',
           message: 'Fetch failed: ' + err.message
         })
       });

@@ -1,7 +1,8 @@
 'use strict';
 
-const fs = require('node:fs/promises');
 const sharp = require('sharp');
+
+const filePrefix = '/facebook-post'
 
 //---------------------------------------------------------------------------
 // getPluginStore
@@ -24,39 +25,16 @@ function getPluginStore() {
 //---------------------------------------------------------------------------
 
 async function getSettings() {
-  const store = getPluginStore();
-  let settings = await store.get({key: 'settings'});
+  let settings = strapi.config.get('plugin.facebook-feed');
   if (! settings)
     settings = {
       appName:    '',
       appId:      '',
       appSecret:  '',
-      clientSecret: ''
+      clientSecret: '',
+      cronTable:  ''
     };
   return settings;
-}
-
-//---------------------------------------------------------------------------
-// saveSettings
-//    Updates the Facebook 'app' saved settings.
-//---------------------------------------------------------------------------
-
-async function saveSettings(settings) {
-  try {
-    // Sanitize fields.
-    for (const key in settings) {
-      if (! ['appName', 'appId', 'appSecret', 'clientSecret'].includes(key))
-        delete settings[key];
-    }
-    // Then write to the database.
-    const store = getPluginStore();
-    await store.set({key: 'settings', value: settings});
-    // Return the sanitized data.
-    return settings;
-  }
-  catch (err) {
-    return {error: err.message};
-  }
 }
 
 //---------------------------------------------------------------------------
@@ -143,10 +121,12 @@ async function fetchPosts() {
   if (! page.pageToken)
     return { error: 'Not connected' };
 
-  let fetched = await getFacebookPosts(store, page);
+  const app = strapi.config.get('plugin.facebook-feed');
+
+  let fetched = await getFacebookPosts(app, page);
 
   if (! page.pageOnly)
-    fetched += await getInstagramPosts(store, page);
+    fetched += await getInstagramPosts(app, page);
 
   return { fetched }
 }
@@ -158,7 +138,9 @@ async function fetchPosts() {
 // that FB returns posts with the default sort order of newest first).
 //---------------------------------------------------------------------------
 
-async function getFacebookPosts(store, page) {
+async function getFacebookPosts(app, page) {
+  const serverURL = strapi.config.get('server.url');
+
   // Fetch a list of all posts we've added so far: just the post ID will
   // do. We'll use this to avoid creating a new entry for these, and to
   // stop fetching.
@@ -169,13 +151,8 @@ async function getFacebookPosts(store, page) {
       sort: { createdAt: 'desc' }
     });
 
-  // Make sure the output directory exists, for storing pictures.
-  const prefix = './public/facebook-feed';
-  await fs.mkdir(prefix, {recursive: true});
-
   // Now start fetching posts from the connected Facebook page (default
   // order is newest first).
-  const app = await store.get({key: 'settings'});
   let fetched = 0;
 
   let next = `https://graph.facebook.com/${page.pageID}/feed` +
@@ -202,28 +179,51 @@ async function getFacebookPosts(store, page) {
         break;
       }
 
-      // Fetch the 'full picture' image and store it locally, as Facebook links
-      // expire after a few days.
+      // Otherwise, we fetch the 'full picture' image and store it locally,
+      // as Facebook links expire after a few days.
       let width = 0, height = 0, featured;
-      const serverURL = strapi.config.get('server.url', '');
 
       if (post.full_picture) {
-        const path = `${post.id}.webp`
-        await fetch(post.full_picture)
-          .then(rsp => rsp.arrayBuffer())
-          .then(buf => sharp(buf).resize(700).toFile(`${prefix}/${path}`))
-          .then(info => {
-            width = info.width; height = info.height;
-            featured = `${serverURL}/facebook-feed/picture/${path}`;
-            console.log('Written to', featured);
-          })
-          .catch(err => {
-            console.log('Cannot write FB image', path, err);
-          })
+        const name = post.id,
+              path = `${filePrefix}/${name}.webp`;
+
+        try {
+          const {data, info} =
+            await fetch(post.full_picture)
+              .then(rsp => rsp.arrayBuffer())
+              .then(buf =>
+                sharp(buf)
+                  .resize(700)
+                  .webp()
+                  .toBuffer({resolveWithObject: true})
+              );
+
+          const file = {
+            path,
+            name,
+            ext: '.webp',
+            mime: 'image/webp',
+            folder: filePrefix,
+            folderPath: filePrefix,
+            hash: post.id,
+            buffer: data
+          };
+
+          await strapi.plugin('upload').provider.upload(file);
+
+          width = info.width; height = info.height;
+          featured =
+            file.url.startsWith('http') ?
+              file.url :
+              serverURL.replace(/\/*$/, '') + file.url;
+          console.log('Written to', featured);
+        }
+        catch(err) {
+          console.log('Cannot write FB image', path, err);
+        }
       }
 
-      // Otherwise, we create a new 'facebook-post' entry from the post
-      // data.
+      // Create a new 'facebook-post' entry from the post data.
       await strapi.entityService.create(
         'plugin::facebook-feed.facebook-post',
         {
@@ -256,7 +256,7 @@ async function getFacebookPosts(store, page) {
 // obtain any posts if the user is not a Business or Creator.
 //---------------------------------------------------------------------------
 
-async function getInstagramPosts(store, page) {
+async function getInstagramPosts(app, page) {
   // First get a list of posts we've already saved.
   const saved = await strapi.entityService.findMany(
     'plugin::facebook-feed.instagram-post',
@@ -314,23 +314,12 @@ async function getInstagramPosts(store, page) {
 }
 
 //---------------------------------------------------------------------------
-// getPicture
-//---------------------------------------------------------------------------
-
-function getPicture(path) {
-  const prefix = './public/facebook-feed';
-  return fs.readFile(`${prefix}/${path}`);
-}
-
-//---------------------------------------------------------------------------
 // Module exports
 //---------------------------------------------------------------------------
 
 module.exports = () => ({
   getSettings,
-  saveSettings,
   connectPage,
   getConnectedPage,
-  fetchPosts,
-  getPicture
+  fetchPosts
 });

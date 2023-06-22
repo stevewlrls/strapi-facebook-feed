@@ -100,7 +100,7 @@ async function connectPage({userToken, userID, pageOnly}) {
 async function getConnectedPage() {
   const store = getPluginStore();
   const connection = await store.get({key: 'pageInfo'});
-  const settings = await store.get({key: 'settings'});
+  const settings = await getSettings();
   const { pageName, pageOnly } = connection || {};
   const { appId, clientSecret } = settings || {};
   return { pageName, appId, clientSecret, pageOnly };

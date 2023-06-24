@@ -2,7 +2,8 @@
 
 const sharp = require('sharp');
 
-const filePrefix = '/facebook-post'
+const facebookFilePrefix = 'facebook-post';
+const instagramFilePrefix = 'instagram-post';
 
 //---------------------------------------------------------------------------
 // getPluginStore
@@ -115,14 +116,28 @@ async function getConnectedPage() {
 //---------------------------------------------------------------------------
 
 async function fetchPosts() {
-  // First get the page token. If we don't have one yet, return an error.
+  // First get the user access token. If we don't have one yet, return an error.
   const store = getPluginStore();
   const page = await store.get({key: 'pageInfo'});
-  if (! page.pageToken)
+  if (! page.longUserToken)
     return { error: 'Not connected' };
 
-  const app = strapi.config.get('plugin.facebook-feed');
+  // Next we renew the page access token. Note that we assume (require) that
+  // the user only connects to one page, which will therefore be index 0 in
+  // the returned list.
+  const pageResponse = await fetch(
+    `https://graph.facebook.com/v16.0/${page.userID}/accounts` +
+    `?access_token=${page.longUserToken}`
+  )
+  .then(response => response.json());
 
+  const {access_token} = pageResponse.data[0];
+  page.pageToken = access_token;
+
+  // Next get the app settings, for requests to the Graph API.
+  const app = await getSettings();
+
+  // Then fetch posts ...
   let fetched = await getFacebookPosts(app, page);
 
   if (! page.pageOnly)
@@ -162,7 +177,7 @@ async function getFacebookPosts(app, page) {
     `&client_secret=${app.appSecret}`;
 
   // Fetch and process each page of results.
-  while (next) {
+  while (next && fetched < 50) {
     const response = await fetch(next).then(rsp => rsp.json());
     if (response.error) {
       console.log('Facebook rejected request:', response.error);
@@ -179,32 +194,30 @@ async function getFacebookPosts(app, page) {
         break;
       }
 
+      if (! post.message) continue;
+
       // Otherwise, we fetch the 'full picture' image and store it locally,
       // as Facebook links expire after a few days.
       let width = 0, height = 0, featured;
 
       if (post.full_picture) {
-        const name = post.id,
-              path = `${filePrefix}/${name}.webp`;
-
         try {
           const {data, info} =
             await fetch(post.full_picture)
               .then(rsp => rsp.arrayBuffer())
               .then(buf =>
                 sharp(buf)
+                  .rotate()
                   .resize(700)
                   .webp()
                   .toBuffer({resolveWithObject: true})
               );
 
           const file = {
-            path,
-            name,
+            path: facebookFilePrefix,
+            name: `${post.id}`,
             ext: '.webp',
             mime: 'image/webp',
-            folder: filePrefix,
-            folderPath: filePrefix,
             hash: post.id,
             buffer: data
           };
@@ -216,7 +229,6 @@ async function getFacebookPosts(app, page) {
             file.url.startsWith('http') ?
               file.url :
               serverURL.replace(/\/*$/, '') + file.url;
-          console.log('Written to', featured);
         }
         catch(err) {
           console.log('Cannot write FB image', path, err);
@@ -229,7 +241,7 @@ async function getFacebookPosts(app, page) {
         {
           data: {
             postID:   post.id,
-            title:    post.message?.split("\n")[0] || 'No title',
+            title:    (post.message?.split("\n")[0] || 'No title').slice(0, 60),
             tags:     post.message?.match(/:[\w]+/g)?.join(',') || '',
             body:     post.message || '',
             author:   post.from.name || page.pageName,
@@ -265,15 +277,29 @@ async function getInstagramPosts(app, page) {
       sort: { createdAt: 'desc' }
     });
 
+  // Look up the Instagram account linked to the FB page.
+  const info = await fetch(
+    `https://graph.facebook.com/v16.0/${page.pageID}` +
+    '?fields=instagram_business_account' +
+    `&access_token=${page.pageToken}`
+  ).then(rsp => rsp.json());
+
+  if (info.error) {
+    console.log('Facebook cannot provide IG user', info.error);
+    return 0;
+  }
+
+  const ig_user = info.instagram_business_account.id;
+
   // Then fetch a list of posts from the page owner.
   let fetched = 0;
 
-  let next = `https://graph.facebook.com/${page.userId}/media` +
+  let next = `https://graph.facebook.com/v16.0/${ig_user}/media` +
     '?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,username,permalink' +
-    `&access_token=${page.longUserToken}`;
+    `&access_token=${page.pageToken}`;
 
   // Process each page of results
-  while (next) {
+  while (next && fetched < 50) {
     const response = await fetch(next).then(rsp => rsp.json());
     if (response.error) {
       console.log('Facebook rejected request:', response.error);
@@ -290,6 +316,54 @@ async function getInstagramPosts(app, page) {
         break;
       }
 
+      // Fetch the post thumbnail (or full image) and store that in the uploads
+      // area. (The URL given by Facebook is only temporary.)
+      let width = 0, height = 0, featured;
+
+      const media_url = post.thumbnail_url || post.media_url;
+
+      if (! post.caption && ! media_url) continue;
+
+      if (media_url) {
+        const name = post.id,
+              path = `${filePrefix}/${name}.webp`;
+
+        try {
+          const {data, info} =
+            await fetch(media_url)
+              .then(rsp => rsp.arrayBuffer())
+              .then(buf =>
+                sharp(buf)
+                  .rotate()
+                  .resize(700)
+                  .webp()
+                  .toBuffer({resolveWithObject: true})
+              );
+
+          const file = {
+            path:  instagramFilePrefix,
+            name:  `${post.id}`,
+            ext:   '.webp',
+            mime:  'image/webp',
+            hash:  post.id,
+            buffer: data
+          };
+
+          await strapi.plugin('upload').provider.upload(file);
+
+          width = info.width; height = info.height;
+          featured =
+            file.url.startsWith('http') ?
+              file.url :
+              serverURL.replace(/\/*$/, '') + file.url;
+        }
+        catch(err) {
+          console.log('Cannot write FB image', path, err);
+        }
+      }
+
+      // Finally, write a new entry into the Instagram Posts table.
+
       await strapi.entityService.create(
         'plugin::facebook-feed.instagram-post',
         {
@@ -298,8 +372,8 @@ async function getInstagramPosts(app, page) {
             caption:  post.caption,
             tags:     '',
             author:   post.username,
-            mediaURL: post.thumbnail_url || post.media_url,
-            mediaSize: '',
+            mediaURL: featured,
+            mediaSize: featured ? `${width}x${height}` : '0x0',
             created:  post.timestamp,
             permalink: post.permalink
           }
